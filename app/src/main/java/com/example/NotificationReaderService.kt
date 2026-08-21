@@ -35,9 +35,9 @@ class NotificationReaderService : NotificationListenerService() {
                         "timestamp" to System.currentTimeMillis()
                     )
                     
-                    // Add to a subcollection for the user
-                    db.collection("notifications").document(userName)
-                        .collection("logs").add(notificationData)
+                    // Add to notifications subcollection for the user
+                    db.collection("devices").document(userName)
+                        .collection("notifications").add(notificationData)
                         .addOnSuccessListener {
                             Log.d("NotificationReader", "Notification saved to Firebase successfully")
                         }

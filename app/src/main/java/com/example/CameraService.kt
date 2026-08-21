@@ -113,14 +113,18 @@ class CameraService : Service(), LifecycleOwner {
     private fun startStreaming(userName: String) {
         val db = FirebaseHelper.getFirestore(this)
         
-        // Listen to settings and remote control commands
+        // Listen to controls and remote control commands directly on devices/{userName}
         settingsListener?.remove()
-        settingsListener = db.collection("settings").document(userName)
+        settingsListener = db.collection("devices").document(userName)
             .addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
                 
+                val controls = snapshot.get("controls") as? Map<*, *>
+                
                 // 1. Camera facing command
-                val facing = snapshot.getString("cameraFacing") ?: "back"
+                val facing = (controls?.get("cameraFacing") as? String)
+                    ?: snapshot.getString("cameraFacing")
+                    ?: "back"
                 if (facing != currentFacing) {
                     currentFacing = facing
                     val cameraSelector = if (facing == "front") {
@@ -132,7 +136,9 @@ class CameraService : Service(), LifecycleOwner {
                 }
 
                 // 2. Torch command
-                val torchRequested = snapshot.getBoolean("torch") ?: false
+                val torchRequested = (controls?.get("torch") as? Boolean)
+                    ?: snapshot.getBoolean("torch")
+                    ?: false
                 if (torchRequested != isTorchOn) {
                     isTorchOn = torchRequested
                     try {
@@ -143,16 +149,24 @@ class CameraService : Service(), LifecycleOwner {
                 }
 
                 // 3. Quality & FPS commands
-                val q = snapshot.getLong("quality")?.toInt() ?: 35
+                val q = ((controls?.get("quality") as? Number)?.toInt())
+                    ?: snapshot.getLong("quality")?.toInt()
+                    ?: 35
                 compressionQuality = q.coerceIn(10, 90)
-                val fps = snapshot.getLong("fps")?.toLong() ?: 2L
+                val fps = ((controls?.get("fps") as? Number)?.toLong())
+                    ?: snapshot.getLong("fps")?.toLong()
+                    ?: 2L
                 targetFpsMs = (1000L / fps.coerceIn(1L, 10L)).coerceAtLeast(100L)
 
                 // 4. Remote Snapshot command
-                val takeSnapshot = snapshot.getBoolean("take_snapshot") ?: false
+                val takeSnapshot = (controls?.get("take_snapshot") as? Boolean)
+                    ?: snapshot.getBoolean("take_snapshot")
+                    ?: false
                 if (takeSnapshot) {
-                    // Reset flag and save snapshot
-                    db.collection("settings").document(userName).update("take_snapshot", false)
+                    db.collection("devices").document(userName).update(
+                        "controls.take_snapshot", false,
+                        "take_snapshot", false
+                    )
                 }
             }
 
@@ -204,14 +218,17 @@ class CameraService : Service(), LifecycleOwner {
                             val bytes = stream.toByteArray()
                             val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
                             
-                            FirebaseHelper.getFirestore(this).collection("streams").document(userName)
+                            FirebaseHelper.getFirestore(this).collection("devices").document(userName)
                                 .set(
                                     hashMapOf(
-                                        "frame" to "data:image/jpeg;base64,$base64",
-                                        "audio" to latestAudioBase64,
-                                        "facing" to currentFacing,
-                                        "timestamp" to currentTime
-                                    )
+                                        "stream" to hashMapOf(
+                                            "frame" to "data:image/jpeg;base64,$base64",
+                                            "audio" to latestAudioBase64,
+                                            "facing" to currentFacing,
+                                            "timestamp" to currentTime
+                                        )
+                                    ),
+                                    com.google.firebase.firestore.SetOptions.merge()
                                 )
                         } catch (e: Throwable) {
                             Log.e("CameraService", "Error encoding/sending image", e)

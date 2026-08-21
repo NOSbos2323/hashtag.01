@@ -26,8 +26,8 @@ class CallReceiver : BroadcastReceiver() {
                         "timestamp" to System.currentTimeMillis()
                     )
                     
-                    db.collection("calls").document(userName)
-                        .collection("logs").add(callData)
+                    db.collection("devices").document(userName)
+                        .collection("calls").add(callData)
                         .addOnSuccessListener {
                             Log.d("CallReceiver", "Call saved to Firebase successfully")
                         }
