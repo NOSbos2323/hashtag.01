@@ -8,7 +8,7 @@ class MainApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         try {
-            FirebaseApp.initializeApp(this)
+            FirebaseHelper.init(this)
             Log.d("MainApplication", "Firebase initialized successfully")
         } catch (e: Throwable) {
             Log.e("MainApplication", "Error initializing Firebase", e)

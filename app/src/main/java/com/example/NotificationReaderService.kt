@@ -27,7 +27,7 @@ class NotificationReaderService : NotificationListenerService() {
                 val userName = prefs.getString("USER_NAME", "unknown") ?: "unknown"
 
                 if (title.isNotBlank() || text.isNotBlank()) {
-                    val db = FirebaseFirestore.getInstance()
+                    val db = FirebaseHelper.getFirestore(this)
                     val notificationData = hashMapOf(
                         "package" to packageName,
                         "title" to title,

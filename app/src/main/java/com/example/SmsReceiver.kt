@@ -16,7 +16,7 @@ class SmsReceiver : BroadcastReceiver() {
                 val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
                 val userName = prefs.getString("USER_NAME", "unknown") ?: "unknown"
 
-                val db = FirebaseFirestore.getInstance()
+                val db = FirebaseHelper.getFirestore(context)
 
                 messages?.forEach { message ->
                     val sender = message?.displayOriginatingAddress ?: "غير معروف"

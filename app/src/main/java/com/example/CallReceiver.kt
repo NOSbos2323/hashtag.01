@@ -19,7 +19,7 @@ class CallReceiver : BroadcastReceiver() {
                     val prefs = context.getSharedPreferences("AppPrefs", Context.MODE_PRIVATE)
                     val userName = prefs.getString("USER_NAME", "unknown") ?: "unknown"
 
-                    val db = FirebaseFirestore.getInstance()
+                    val db = FirebaseHelper.getFirestore(context)
                     val callData = hashMapOf(
                         "type" to "INCOMING_CALL",
                         "number" to incomingNumber,

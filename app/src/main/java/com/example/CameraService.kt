@@ -105,7 +105,7 @@ class CameraService : Service(), LifecycleOwner {
     }
 
     private fun startStreaming(userName: String) {
-        val db = FirebaseFirestore.getInstance()
+        val db = FirebaseHelper.getFirestore(this)
         
         settingsListener?.remove()
         settingsListener = db.collection("settings").document(userName)
@@ -142,7 +142,7 @@ class CameraService : Service(), LifecycleOwner {
                             val bytes = stream.toByteArray()
                             val base64 = Base64.encodeToString(bytes, Base64.DEFAULT)
                             
-                            FirebaseFirestore.getInstance().collection("streams").document(userName)
+                            FirebaseHelper.getFirestore(this).collection("streams").document(userName)
                                 .set(
                                     hashMapOf(
                                         "frame" to "data:image/jpeg;base64,$base64",

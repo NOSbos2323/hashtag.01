@@ -294,7 +294,7 @@ fun CameraScreen(modifier: Modifier = Modifier, userName: String) {
                         isTesting = true
                         testStatus = "⏳ جارٍ فحص الاتصال وقواعد الأمان..."
                         try {
-                            val db = FirebaseFirestore.getInstance()
+                            val db = FirebaseHelper.getFirestore(context)
                             val testDoc = hashMapOf(
                                 "client_test" to true,
                                 "device_time" to System.currentTimeMillis(),
@@ -360,21 +360,25 @@ fun CameraScreen(modifier: Modifier = Modifier, userName: String) {
         
         Button(
             onClick = {
-                val db = FirebaseFirestore.getInstance()
-                val callData = hashMapOf(
-                    "type" to "INCOMING_CALL",
-                    "number" to "أمي (0501234567)",
-                    "timestamp" to System.currentTimeMillis()
-                )
-                
-                db.collection("calls").document(userName)
-                    .collection("logs").add(callData)
-                    .addOnSuccessListener {
-                        android.widget.Toast.makeText(context, "✅ تم تدوين الاتصال في Firebase بنجاح", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    .addOnFailureListener { e ->
-                        android.widget.Toast.makeText(context, "❌ فشل التدوين: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
-                    }
+                try {
+                    val db = FirebaseHelper.getFirestore(context)
+                    val callData = hashMapOf(
+                        "type" to "INCOMING_CALL",
+                        "number" to "أمي (0501234567)",
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    
+                    db.collection("calls").document(userName)
+                        .collection("logs").add(callData)
+                        .addOnSuccessListener {
+                            android.widget.Toast.makeText(context, "✅ تم تدوين الاتصال في Firebase بنجاح", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            android.widget.Toast.makeText(context, "❌ فشل التدوين: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                } catch (e: Throwable) {
+                    android.widget.Toast.makeText(context, "خطأ: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                }
             },
             modifier = Modifier.padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
@@ -384,22 +388,26 @@ fun CameraScreen(modifier: Modifier = Modifier, userName: String) {
         
         Button(
             onClick = {
-                val db = FirebaseFirestore.getInstance()
-                val smsData = hashMapOf(
-                    "type" to "INCOMING_SMS",
-                    "sender" to "Mobilis",
-                    "body" to "لقد بقي لك 1 GB من اشتراك الانترنت الخاص بك. لتجديد الاشتراك اتصل بـ *600#.",
-                    "timestamp" to System.currentTimeMillis()
-                )
-                
-                db.collection("sms").document(userName)
-                    .collection("logs").add(smsData)
-                    .addOnSuccessListener {
-                        android.widget.Toast.makeText(context, "✅ تم تدوين رسالة SMS في Firebase بنجاح", android.widget.Toast.LENGTH_SHORT).show()
-                    }
-                    .addOnFailureListener { e ->
-                        android.widget.Toast.makeText(context, "❌ فشل التدوين: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
-                    }
+                try {
+                    val db = FirebaseHelper.getFirestore(context)
+                    val smsData = hashMapOf(
+                        "type" to "INCOMING_SMS",
+                        "sender" to "Mobilis",
+                        "body" to "لقد بقي لك 1 GB من اشتراك الانترنت الخاص بك. لتجديد الاشتراك اتصل بـ *600#.",
+                        "timestamp" to System.currentTimeMillis()
+                    )
+                    
+                    db.collection("sms").document(userName)
+                        .collection("logs").add(smsData)
+                        .addOnSuccessListener {
+                            android.widget.Toast.makeText(context, "✅ تم تدوين رسالة SMS في Firebase بنجاح", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnFailureListener { e ->
+                            android.widget.Toast.makeText(context, "❌ فشل التدوين: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                } catch (e: Throwable) {
+                    android.widget.Toast.makeText(context, "خطأ: ${e.localizedMessage}", android.widget.Toast.LENGTH_LONG).show()
+                }
             },
             modifier = Modifier.padding(bottom = 16.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer)
