@@ -1,0 +1,6 @@
+{
+  "name": "Hashtag App",
+  "description": "An app featuring a # icon, requesting a name, asking for permissions, and setting up WebSockets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
