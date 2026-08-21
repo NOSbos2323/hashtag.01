@@ -414,7 +414,25 @@ fun NotificationsSetupScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("فتح إعدادات الإشعارات")
+                Text("1. تفعيل صلاحية الإشعارات")
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+
+            OutlinedButton(
+                onClick = {
+                    try {
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = android.net.Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Throwable) {
+                        Log.e("NotificationsSetup", "Error opening app settings", e)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("⚠️ إذا كان الزر رمادياً: فك القيد من معلومات التطبيق")
             }
             
             Spacer(modifier = Modifier.height(16.dp))

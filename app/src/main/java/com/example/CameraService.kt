@@ -45,8 +45,14 @@ class CameraService : Service(), LifecycleOwner {
 
     override fun onCreate() {
         super.onCreate()
-        lifecycleRegistry.currentState = Lifecycle.State.CREATED
-        createNotificationChannel()
+        try {
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_RESUME)
+            createNotificationChannel()
+        } catch (e: Throwable) {
+            Log.e("CameraService", "Error during service onCreate", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -59,8 +65,6 @@ class CameraService : Service(), LifecycleOwner {
             stopSelf()
             return START_NOT_STICKY
         }
-
-        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         
         val userName = intent?.getStringExtra("USER_NAME") ?: "unknown"
         
@@ -213,7 +217,9 @@ class CameraService : Service(), LifecycleOwner {
 
     override fun onDestroy() {
         try {
-            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_PAUSE)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_STOP)
+            lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
             settingsListener?.remove()
             cameraProvider?.unbindAll()
             
