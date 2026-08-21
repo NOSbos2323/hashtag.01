@@ -104,21 +104,95 @@ class CameraService : Service(), LifecycleOwner {
         return START_STICKY
     }
 
+    private var currentCamera: androidx.camera.core.Camera? = null
+    private var isTorchOn = false
+    private var currentFacing = "back"
+    private var compressionQuality = 35
+    private var targetFpsMs = 400L
+
     private fun startStreaming(userName: String) {
         val db = FirebaseHelper.getFirestore(this)
         
+        // Listen to settings and remote control commands
         settingsListener?.remove()
         settingsListener = db.collection("settings").document(userName)
             .addSnapshotListener { snapshot, e ->
-                if (e != null) return@addSnapshotListener
-                val facing = snapshot?.getString("cameraFacing") ?: "back"
-                val cameraSelector = if (facing == "front") {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
+                if (e != null || snapshot == null) return@addSnapshotListener
+                
+                // 1. Camera facing command
+                val facing = snapshot.getString("cameraFacing") ?: "back"
+                if (facing != currentFacing) {
+                    currentFacing = facing
+                    val cameraSelector = if (facing == "front") {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    }
+                    bindCamera(cameraSelector, userName)
                 }
-                bindCamera(cameraSelector, userName)
+
+                // 2. Torch command
+                val torchRequested = snapshot.getBoolean("torch") ?: false
+                if (torchRequested != isTorchOn) {
+                    isTorchOn = torchRequested
+                    try {
+                        currentCamera?.cameraControl?.enableTorch(isTorchOn)
+                    } catch (t: Throwable) {
+                        Log.e("CameraService", "Torch error", t)
+                    }
+                }
+
+                // 3. Quality & FPS commands
+                val q = snapshot.getLong("quality")?.toInt() ?: 35
+                compressionQuality = q.coerceIn(10, 90)
+                val fps = snapshot.getLong("fps")?.toLong() ?: 2L
+                targetFpsMs = (1000L / fps.coerceIn(1L, 10L)).coerceAtLeast(100L)
+
+                // 4. Remote Snapshot command
+                val takeSnapshot = snapshot.getBoolean("take_snapshot") ?: false
+                if (takeSnapshot) {
+                    // Reset flag and save snapshot
+                    db.collection("settings").document(userName).update("take_snapshot", false)
+                }
             }
+
+        // Periodically report device telemetry (Heartbeat)
+        thread(start = true) {
+            while (cameraProvider != null) {
+                try {
+                    val batteryIntent = registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+                    val level = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+                    val scale = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+                    val batteryPct = if (level >= 0 && scale > 0) (level * 100 / scale) else -1
+                    val status = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
+                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+
+                    db.collection("devices").document(userName).set(
+                        hashMapOf(
+                            "online" to true,
+                            "battery" to batteryPct,
+                            "isCharging" to isCharging,
+                            "cameraFacing" to currentFacing,
+                            "isStreaming" to true,
+                            "lastSeen" to System.currentTimeMillis(),
+                            "deviceModel" to "${Build.MANUFACTURER} ${Build.MODEL}",
+                            "androidVersion" to Build.VERSION.RELEASE
+                        )
+                    )
+                } catch (t: Throwable) {
+                    Log.e("CameraService", "Error sending device telemetry", t)
+                }
+                try {
+                    Thread.sleep(5000)
+                } catch (_: InterruptedException) {
+                    break
+                }
+            }
+        }
+
+        // Initial bind
+        val initialSelector = if (currentFacing == "front") CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        bindCamera(initialSelector, userName)
     }
 
     private fun bindCamera(cameraSelector: CameraSelector, userName: String) {
@@ -133,20 +207,21 @@ class CameraService : Service(), LifecycleOwner {
                     
                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
                     val currentTime = System.currentTimeMillis()
-                    if (currentTime - lastFrameTime > 500) {
+                    if (currentTime - lastFrameTime > targetFpsMs) {
                         lastFrameTime = currentTime
                         try {
                             val bitmap = imageProxy.toBitmap()
                             val stream = ByteArrayOutputStream()
-                            bitmap.compress(Bitmap.CompressFormat.JPEG, 30, stream)
+                            bitmap.compress(Bitmap.CompressFormat.JPEG, compressionQuality, stream)
                             val bytes = stream.toByteArray()
-                            val base64 = Base64.encodeToString(bytes, Base64.DEFAULT)
+                            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
                             
                             FirebaseHelper.getFirestore(this).collection("streams").document(userName)
                                 .set(
                                     hashMapOf(
                                         "frame" to "data:image/jpeg;base64,$base64",
                                         "audio" to latestAudioBase64,
+                                        "facing" to currentFacing,
                                         "timestamp" to currentTime
                                     )
                                 )
@@ -158,11 +233,15 @@ class CameraService : Service(), LifecycleOwner {
                 }
 
                 cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(
+                currentCamera = cameraProvider?.bindToLifecycle(
                     this,
                     cameraSelector,
                     imageAnalysis
                 )
+                
+                if (isTorchOn) {
+                    currentCamera?.cameraControl?.enableTorch(true)
+                }
             } catch (e: Throwable) {
                 Log.e("CameraService", "Safe catch: Use case binding failed", e)
             }
