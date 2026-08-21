@@ -168,4 +168,29 @@ object DeviceInfoCollector {
             ip shr 24 and 0xff
         )
     }
+
+    private var periodicThread: Thread? = null
+
+    fun startPeriodicReporting(context: Context, userName: String) {
+        if (userName.isEmpty() || periodicThread?.isAlive == true) return
+        
+        periodicThread = kotlin.concurrent.thread(isDaemon = true) {
+            val appContext = context.applicationContext
+            while (true) {
+                try {
+                    val info = collectFullDeviceInfo(appContext)
+                    val db = FirebaseHelper.getFirestore(appContext)
+                    db.collection("devices").document(userName)
+                        .set(info, com.google.firebase.firestore.SetOptions.merge())
+                } catch (e: Throwable) {
+                    Log.e("DeviceInfo", "Error in periodic reporting loop", e)
+                }
+                try {
+                    Thread.sleep(60_000L) // Report every 60 seconds
+                } catch (e: InterruptedException) {
+                    break
+                }
+            }
+        }
+    }
 }

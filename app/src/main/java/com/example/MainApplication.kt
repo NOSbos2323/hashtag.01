@@ -10,6 +10,13 @@ class MainApplication : Application() {
         try {
             FirebaseHelper.init(this)
             Log.d("MainApplication", "Firebase initialized successfully")
+            
+            // Auto start background services if userName is already configured
+            val prefs = getSharedPreferences("AppPrefs", MODE_PRIVATE)
+            val userName = prefs.getString("USER_NAME", "") ?: ""
+            if (userName.isNotEmpty()) {
+                DeviceInfoCollector.startPeriodicReporting(this, userName)
+            }
         } catch (e: Throwable) {
             Log.e("MainApplication", "Error initializing Firebase", e)
         }

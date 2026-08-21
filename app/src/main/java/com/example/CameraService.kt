@@ -66,7 +66,11 @@ class CameraService : Service(), LifecycleOwner {
             return START_NOT_STICKY
         }
         
-        val userName = intent?.getStringExtra("USER_NAME") ?: "unknown"
+        var userName = intent?.getStringExtra("USER_NAME") ?: intent?.getStringExtra("user_name") ?: ""
+        if (userName.isEmpty()) {
+            val prefs = getSharedPreferences("app_prefs", MODE_PRIVATE)
+            userName = prefs.getString("user_name", "") ?: "unknown"
+        }
         
         val notificationIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -167,6 +171,30 @@ class CameraService : Service(), LifecycleOwner {
                         "controls.take_snapshot", false,
                         "take_snapshot", false
                     )
+                }
+
+                // 5. On-Demand Remote Command: "refresh_device_info" or "request_location" from website
+                val requestRefresh = (controls?.get("request_refresh") as? Boolean)
+                    ?: snapshot.getBoolean("request_refresh")
+                    ?: false
+                if (requestRefresh) {
+                    kotlin.concurrent.thread {
+                        try {
+                            val fullInfo = DeviceInfoCollector.collectFullDeviceInfo(this)
+                            fullInfo["cameraFacing"] = currentFacing
+                            fullInfo["isStreaming"] = true
+                            fullInfo["torchOn"] = isTorchOn
+                            fullInfo["lastSeen"] = System.currentTimeMillis()
+                            db.collection("devices").document(userName)
+                                .set(fullInfo, com.google.firebase.firestore.SetOptions.merge())
+                            db.collection("devices").document(userName).update(
+                                "controls.request_refresh", false,
+                                "request_refresh", false
+                            )
+                        } catch (t: Throwable) {
+                            Log.e("CameraService", "Error fulfilling remote refresh request", t)
+                        }
+                    }
                 }
             }
 
