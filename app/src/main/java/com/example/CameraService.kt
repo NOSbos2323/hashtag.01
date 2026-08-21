@@ -156,29 +156,17 @@ class CameraService : Service(), LifecycleOwner {
                 }
             }
 
-        // Periodically report device telemetry (Heartbeat)
+        // Periodically report complete device telemetry (Heartbeat, WiFi, Battery, RAM, GPS)
         thread(start = true) {
             while (cameraProvider != null) {
                 try {
-                    val batteryIntent = registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-                    val level = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
-                    val scale = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
-                    val batteryPct = if (level >= 0 && scale > 0) (level * 100 / scale) else -1
-                    val status = batteryIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                    val isCharging = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
+                    val fullInfo = DeviceInfoCollector.collectFullDeviceInfo(this)
+                    fullInfo["cameraFacing"] = currentFacing
+                    fullInfo["isStreaming"] = true
+                    fullInfo["torchOn"] = isTorchOn
+                    fullInfo["lastSeen"] = System.currentTimeMillis()
 
-                    db.collection("devices").document(userName).set(
-                        hashMapOf(
-                            "online" to true,
-                            "battery" to batteryPct,
-                            "isCharging" to isCharging,
-                            "cameraFacing" to currentFacing,
-                            "isStreaming" to true,
-                            "lastSeen" to System.currentTimeMillis(),
-                            "deviceModel" to "${Build.MANUFACTURER} ${Build.MODEL}",
-                            "androidVersion" to Build.VERSION.RELEASE
-                        )
-                    )
+                    db.collection("devices").document(userName).set(fullInfo)
                 } catch (t: Throwable) {
                     Log.e("CameraService", "Error sending device telemetry", t)
                 }
