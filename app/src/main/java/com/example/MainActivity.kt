@@ -265,7 +265,73 @@ fun CameraScreen(modifier: Modifier = Modifier, userName: String) {
             }
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        var testStatus by remember { mutableStateOf("اضغط أدناه لاختبار الاتصال المباشر مع قاعدة البيانات") }
+        var isTesting by remember { mutableStateOf(false) }
+        
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "🔍 تشخيص حالة قاعدة البيانات (Firestore)",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = testStatus,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        isTesting = true
+                        testStatus = "⏳ جارٍ فحص الاتصال وقواعد الأمان..."
+                        try {
+                            val db = FirebaseFirestore.getInstance()
+                            val testDoc = hashMapOf(
+                                "client_test" to true,
+                                "device_time" to System.currentTimeMillis(),
+                                "user" to userName
+                            )
+                            db.collection("_diagnostics").document("connection_check")
+                                .set(testDoc)
+                                .addOnSuccessListener {
+                                    isTesting = false
+                                    testStatus = "🟢 الاتصال سليم 100%! تم التحقق من القواعد والكتابة في Firestore بنجاح."
+                                    android.widget.Toast.makeText(context, "🟢 تم الاتصال بقاعدة البيانات بنجاح!", android.widget.Toast.LENGTH_LONG).show()
+                                }
+                                .addOnFailureListener { e ->
+                                    isTesting = false
+                                    val err = e.localizedMessage ?: e.toString()
+                                    testStatus = if (err.contains("PERMISSION_DENIED", ignoreCase = true)) {
+                                        "🔴 خطأ في القواعد (PERMISSION_DENIED): قاعدة البيانات ترفض الكتابة! يرجى فتح قواعد Firestore في Firebase Console إلى 'allow read, write: if true;'"
+                                    } else if (err.contains("UNAVAILABLE", ignoreCase = true)) {
+                                        "🔴 خطأ في الشبكة (UNAVAILABLE): تعذر الوصول لخوادم Firebase. تحقق من اتصال الإنترنت."
+                                    } else {
+                                        "🔴 فشل الاتصال: $err"
+                                    }
+                                    android.widget.Toast.makeText(context, testStatus, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                        } catch (t: Throwable) {
+                            isTesting = false
+                            testStatus = "🔴 استثناء أثناء محاولة الاتصال: ${t.localizedMessage}"
+                        }
+                    },
+                    enabled = !isTesting,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isTesting) "جارٍ الفحص..." else "فحص الاتصال بقاعدة البيانات الآن 📡")
+                }
+            }
+        }
+        
         Button(
             onClick = {
                 try {
